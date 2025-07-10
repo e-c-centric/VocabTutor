@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+        .container {
+            margin-top: 100px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 48px;
+            color: #ff6347;
+        }
+        .form-group label {
+            font-size: 24px;
+        }
+        .form-control {
+            font-size: 20px;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        .btn {
+            font-size: 24px;
+            padding: 15px 30px;
+            margin-top: 20px;
+            border-radius: 10px;
+            background-color: #ff6347;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Login</h1>
+        <form method="POST">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn">Login</button>
+        </form>
+    </div>
+</body>
+
+</html>

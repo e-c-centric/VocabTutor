@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Tutor</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+        .container {
+            text-align: center;
+            margin-top: 100px;
+        }
+        h1 {
+            font-size: 48px;
+            color: #ff6347;
+        }
+        .btn {
+            font-size: 24px;
+            padding: 15px 30px;
+            margin: 20px;
+            border-radius: 10px;
+        }
+        .btn-primary {
+            background-color: #ff6347;
+            border: none;
+        }
+        .btn-secondary {
+            background-color: #32cd32;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Welcome to Vocabulary Tutor</h1>
+        <a href="{{ url_for('login') }}" class="btn btn-primary mt-3">Login</a>
+        <a href="{{ url_for('register') }}" class="btn btn-secondary mt-3">Register</a>
+    </div>
+</body>
+
+</html>

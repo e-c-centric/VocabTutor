@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Tutor</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .game-container {
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .word-button {
+            margin: 10px;
+            width: 45%;
+            height: 100px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .power-up {
+            font-size: 24px;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            cursor: pointer;
+        }
+
+        .result {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .question-count {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .audio-icon {
+            font-size: 48px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .chart-container {
+            margin-top: 20px;
+        }
+
+        .feedback {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .play-again {
+            margin-top: 20px;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ff6347;
+            animation: fall 2s linear infinite;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(0);
+            }
+
+            100% {
+                transform: translateY(100vh);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="timer" id="timer">Time: 30</div>
+    <div id="power-ups" class="power-up">
+        <img id="double-points" src="https://img.icons8.com/emoji/48/000000/star-emoji.png" title="Double Points (1)" />
+        <img id="extra-time" src="https://img.icons8.com/?size=100&id=58414&format=png&color=000000"
+            title="Extra Time (1)" />
+        <img id="skip-question" src="https://img.icons8.com/?size=100&id=124060&format=png&color=000000"
+            title="Skip Question (1)" />
+    </div>
+    <div class="container game-container">
+        <h1>Vocabulary Tutor</h1>
+        <div id="audio-icon" class="audio-icon">&#128266;</div>
+        <div id="word-buttons" class="mt-4"></div>
+        <div id="result" class="result"></div>
+        <div id="score" class="score">Score: 0</div>
+        <div id="question-count" class="question-count">Question: 0/5</div>
+        <div class="chart-container">
+            <canvas id="scoreChart"></canvas>
+        </div>
+        <div id="feedback" class="feedback"></div>
+        <button id="play-again" class="btn btn-primary play-again">Play Again</button>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger mt-3">Logout</a>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        // let correctWord = '';
+        // let audioData = '';
+        // let timer;
+        // let timeLeft = 30;
+        // let startTime;
+        // let doublePoints = false;
+        // let extraTime = false;
+        // let skipQuestion = false;
+
+        function loadQuestion() {
+            $.get('/get_question', function (data) {
+                correctWord = data.correct_word;
+                audioData = data.audio;
+                $('#word-buttons').empty();
+                const colors = ['btn-danger', 'btn-warning', 'btn-success', 'btn-primary'];
+                data.words.forEach((word, index) => {
+                    $('#word-buttons').append(`<button class="btn ${colors[index]} word-button" onclick="submitAnswer('${word}')">${word}</button>`);
+                });
+                resetTimer();
+                startTime = new Date().getTime();
+                playAudio();
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                console.log("Error: " + textStatus + " - " + errorThrown);
+            });
+        }
+
+        function submitAnswer(word) {
+            clearInterval(timer);  // Clear the timer when an answer is submitted
+            const endTime = new Date().getTime();
+            const timeSpent = Math.floor((endTime - startTime) / 1000);
+            $.ajax({
+                url: '/submit_answer',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ answer: word, correct_word: correctWord, time_spent: timeSpent, double_points: doublePoints }),
+                success: function (response) {
+                    if (word === correctWord) {
+                        $('#result').text('Correct!');
+                        showConfetti();
+                    } else {
+                        $('#result').text('Wrong! The correct word was ' + correctWord);
+                    }
+                    $('#score').text('Score: ' + response.score);
+                    $('#question-count').text('Question: ' + response.question_count + '/5');
+                    $('#double-points').attr('title', `Double Points (${response.power_ups.double_points})`);
+                    $('#extra-time').attr('title', `Extra Time (${response.power_ups.extra_time})`);
+                    $('#skip-question').attr('title', `Skip Question (${response.power_ups.skip_question})`);
+                    doublePoints = false;  // Reset double points after use
+                    if (response.question_count < 5) {
+                        setTimeout(loadQuestion, 2000);
+                    } else {
+                        showResults(response.score);
+                    }
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    console.log("Error: " + textStatus + " - " + errorThrown);
+                }
+            });
+        }
+
+        function resetTimer() {
+            clearInterval(timer);
+            timeLeft = 30;
+            $('#timer').text('Time: ' + timeLeft);
+            timer = setInterval(function () {
+                timeLeft--;
+                $('#timer').text('Time: ' + timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    submitAnswer('');
+                }
+            }, 1000);
+        }
+
+        function playAudio() {
+            const audio = new Audio('data:audio/wav;base64,' + btoa(audioData));
+            audio.play();
+        }
+
+        function showConfetti() {
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                document.body.appendChild(confetti);
+                setTimeout(() => {
+                    confetti.remove();
+                }, 2000);
+            }
+        }
+
+        function showResults(finalScore) {
+            $.get('/get_scores', function (data) {
+                const scores = data.scores.reverse();  // Reverse the scores to start with the least recent number
+                const ctx = document.getElementById('scoreChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['1', '2', '3', '4', '5'],
+                        datasets: [{
+                            label: 'Scores',
+                            data: scores,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+                $('#result').html(`Game Over! Your final score is ${finalScore}`);
+                $('#word-buttons').empty();
+                $('#timer').hide();
+                $('#audio-icon').hide();
+                $('#power-ups').hide();
+                $('.chart-container').show();
+                $('#play-again').show();
+
+                // Provide feedback based on the trendline
+                const trend = scores[scores.length - 1] - scores[0];
+                let feedback = '';
+                if (trend > 0) {
+                    feedback = 'Great job! Your scores are improving!';
+                } else if (trend < 0) {
+                    feedback = 'Keep practicing! You can do better!';
+                } else {
+                    feedback = 'Consistent performance! Keep it up!';
+                }
+                $('#feedback').text(feedback);
+            });
+        }
+
+        $(document).ready(function () {
+            loadQuestion();
+            $('#double-points').click(function () {
+                doublePoints = true;
+                $(this).prop('disabled', true);
+            });
+            $('#extra-time').click(function () {
+                extraTime = true;
+                $(this).prop('disabled', true);
+                timeLeft += 10;  // Add extra time
+                $('#timer').text('Time: ' + timeLeft);
+            });
+            $('#skip-question').click(function () {
+                skipQuestion = true;
+                $(this).prop('disabled', true);
+                loadQuestion();  // Skip the current question
+            });
+            $('.chart-container').hide();  // Hide the chart container initially
+            $('#play-again').hide();  // Hide the play again button initially
+
+            $('#play-again').click(function () {
+                $.post('/reset_game', function () {
+                    location.reload();  // Reload the page to start a new game
+                });
+            });
+
+            $('#audio-icon').click(function () {
+                playAudio();  // Replay the audio when the icon is clicked
+            });
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Tutor</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f0f8ff;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .game-container {
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .word-button {
+            margin: 10px;
+            width: 45%;
+            height: 100px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        .power-up {
+            font-size: 24px;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            cursor: pointer;
+        }
+
+        .result {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .question-count {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .audio-icon {
+            font-size: 48px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        .chart-container {
+            margin-top: 20px;
+        }
+
+        .feedback {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        .play-again {
+            margin-top: 20px;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #ff6347;
+            animation: fall 2s linear infinite;
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(0);
+            }
+            100% {
+                transform: translateY(100vh);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="timer" id="timer">Time: 30</div>
+    <div id="power-ups" class="power-up">
+        <img id="double-points" src="https://img.icons8.com/emoji/48/000000/star-emoji.png" title="Double Points (1)" />
+        <img id="extra-time" src="https://img.icons8.com/emoji/48/000000/hourglass-done-emoji.png" title="Extra Time (1)" />
+        <img id="skip-question" src="https://img.icons8.com/emoji/48/000000/fast-forward-emoji.png" title="Skip Question (1)" />
+    </div>
+    <div class="container game-container">
+        <h1>Vocabulary Tutor</h1>
+        <div id="audio-icon" class="audio-icon">&#128266;</div>
+        <div id="word-buttons" class="mt-4"></div>
+        <div id="result" class="result"></div>
+        <div id="score" class="score">Score: 0</div>
+        <div id="question-count" class="question-count">Question: 0/5</div>
+        <div class="chart-container">
+            <canvas id="scoreChart"></canvas>
+        </div>
+        <div id="feedback" class="feedback"></div>
+        <button id="play-again" class="btn btn-primary play-again">Play Again</button>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger mt-3">Logout</a>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        let correctWord = '';
+        let audioData = '';
+        let timer;
+        let timeLeft = 30;
+        let startTime;
+        let doublePoints = false;
+        let extraTime = false;
+        let skipQuestion = false;
+
+        function loadQuestion() {
+            $.get('/get_question', function (data) {
+                correctWord = data.correct_word;
+                audioData = data.audio;
+                $('#word-buttons').empty();
+                const colors = ['btn-danger', 'btn-warning', 'btn-success', 'btn-primary'];
+                data.words.forEach((word, index) => {
+                    $('#word-buttons').append(`<button class="btn ${colors[index]} word-button" onclick="submitAnswer('${word}')">${word}</button>`);
+                });
+                resetTimer();
+                startTime = new Date().getTime();
+                playAudio();
+            }).fail(function (jqXHR, textStatus, errorThrown) {
+                console.log("Error: " + textStatus + " - " + errorThrown);
+            });
+        }
+
+        function submitAnswer(word) {
+            clearInterval(timer);  // Clear the timer when an answer is submitted
+            const endTime = new Date().getTime();
+            const timeSpent = Math.floor((endTime - startTime) / 1000);
+            $.ajax({
+                url: '/submit_answer',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ answer: word, correct_word: correctWord, time_spent: timeSpent, double_points: doublePoints }),
+                success: function (response) {
+                    if (word === correctWord) {
+                        $('#result').text('Correct!');
+                        showConfetti();
+                    } else {
+                        $('#result').text('Wrong! The correct word was ' + correctWord);
+                    }
+                    $('#score').text('Score: ' + response.score);
+                    $('#question-count').text('Question: ' + response.question_count + '/5');
+                    $('#double-points').attr('title', `Double Points (${response.power_ups.double_points})`);
+                    $('#extra-time').attr('title', `Extra Time (${response.power_ups.extra_time})`);
+                    $('#skip-question').attr('title', `Skip Question (${response.power_ups.skip_question})`);
+                    doublePoints = false;  // Reset double points after use
+                    if (response.question_count < 5) {
+                        setTimeout(loadQuestion, 2000);
+                    } else {
+                        showResults(response.score);
+                    }
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    console.log("Error: " + textStatus + " - " + errorThrown);
+                }
+            });
+        }
+
+        function resetTimer() {
+            clearInterval(timer);
+            timeLeft = 30;
+            $('#timer').text('Time: ' + timeLeft);
+            timer = setInterval(function () {
+                timeLeft--;
+                $('#timer').text('Time: ' + timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    submitAnswer('');
+                }
+            }, 1000);
+        }
+
+        function playAudio() {
+            const audio = new Audio('data:audio/wav;base64,' + btoa(audioData));
+            audio.play();
+        }
+
+        function showConfetti() {
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                document.body.appendChild(confetti);
+                setTimeout(() => {
+                    confetti.remove();
+                }, 2000);
+            }
+        }
+
+        function showResults(finalScore) {
+            $.get('/get_scores', function (data) {
+                const scores = data.scores.reverse();  // Reverse the scores to start with the least recent number
+                const ctx = document.getElementById('scoreChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['1', '2', '3', '4', '5'],
+                        datasets: [{
+                            label: 'Scores',
+                            data: scores,
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+                $('#result').html(`Game Over! Your final score is ${finalScore}`);
+                $('#word-buttons').empty();
+                $('#timer').hide();
+                $('#audio-icon').hide();
+                $('#power-ups').hide();
+                $('.chart-container').show();
+                $('#play-again').show();
+
+                // Provide feedback based on the trendline
+                const trend = scores[scores.length - 1] - scores[0];
+                let feedback = '';
+                if (trend > 0) {
+                    feedback = 'Great job! Your scores are improving!';
+                } else if (trend < 0) {
+                    feedback = 'Keep practicing! You can do better!';
+                } else {
+                    feedback = 'Consistent performance! Keep it up!';
+                }
+                $('#feedback').text(feedback);
+            });
+        }
+
+        $(document).ready(function () {
+            loadQuestion();
+            $('#double-points').click(function () {
+                doublePoints = true;
+                $(this).prop('disabled', true);
+            });
+            $('#extra-time').click(function () {
+                extraTime = true;
+                $(this).prop('disabled', true);
+                timeLeft += 10;  // Add extra time
+                $('#timer').text('Time: ' + timeLeft);
+            });
+            $('#skip-question').click(function () {
+                skipQuestion = true;
+                $(this).prop('disabled', true);
+                loadQuestion();  // Skip the current question
+            });
+            $('.chart-container').hide();  // Hide the chart container initially
+            $('#play-again').hide();  // Hide the play again button initially
+
+            $('#play-again').click(function () {
+                $.post('/reset_game', function () {
+                    location.reload();  // Reload the page to start a new game
+                });
+            });
+
+            $('#audio-icon').click(function () {
+                playAudio();  // Replay the audio when the icon is clicked
+            });
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script
+</body>
+
+</html>
